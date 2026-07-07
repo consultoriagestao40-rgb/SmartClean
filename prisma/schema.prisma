@@ -1,0 +1,45 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model EmpresaCliente {
+  id           String           @id @default(uuid())
+  razaoSocial  String           @map("razao_social")
+  cnpj         String           @unique
+  emailContato String           @map("email_contato")
+  telefone     String?
+  status       String           @default("Ativo") // "Ativo" | "Inativo"
+  criadoEm     DateTime         @default(now()) @map("criado_em")
+  dispositivos DispositivoIoT[]
+
+  @@map("empresas_clientes")
+}
+
+model DispositivoIoT {
+  id                      String            @id
+  empresaClienteId        String            @map("empresa_cliente_id")
+  empresaCliente          EmpresaCliente    @relation(fields: [empresaClienteId], references: [id], onDelete: Cascade)
+  localInstalacao         String            @map("local_instalacao")
+  produtoQuimicoAssociado String            @map("produto_quimico_associado")
+  precoPormL              Float             @map("preco_por_ml")
+  status                  String            @default("Ativo") // "Ativo" | "Inativo"
+  ultimaConexao           DateTime?         @map("ultima_conexao")
+  registrosConsumo        RegistroConsumo[]
+
+  @@map("dispositivos_iot")
+}
+
+model RegistroConsumo {
+  id            BigInt         @id @default(autoincrement())
+  dispositivoId String         @map("dispositivo_id")
+  dispositivo   DispositivoIoT @relation(fields: [dispositivoId], references: [id], onDelete: Cascade)
+  mlConsumido   Float          @map("ml_consumido")
+  dataHora      DateTime       @default(now()) @map("data_hora")
+
+  @@map("registros_consumo")
+}
