@@ -7,7 +7,7 @@ const globalForPrisma = global as unknown as { prisma: PrismaClient };
 export const prisma = globalForPrisma.prisma || new PrismaClient();
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
-const MOCK_DB_PATH = "/tmp/nexus_flow_db.json";
+const MOCK_DB_PATH = "/tmp/smart_clean_db.json";
 
 // Type definitions matching database models
 export interface Empresa {
