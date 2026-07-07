@@ -2,6 +2,12 @@ import { PrismaClient } from "@prisma/client";
 import fs from "fs";
 import path from "path";
 
+const NEON_DB_URL = "postgresql://neondb_owner:npg_PsHZaX2r0BgA@ep-spring-voice-ahx4f765-pooler.c-3.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require";
+
+if (typeof process !== "undefined" && !process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = NEON_DB_URL;
+}
+
 // Initialize Prisma
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 export const prisma = globalForPrisma.prisma || new PrismaClient();
@@ -195,7 +201,7 @@ function saveMockState() {
 
 export const db = {
   isMockMode: () => {
-    return !process.env.DATABASE_URL;
+    return process.env.MOCK_MODE === "true";
   },
 
   // GET ALL CLIENTS
