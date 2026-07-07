@@ -292,8 +292,8 @@ export default function Dashboard() {
       {/* TOP HEADER & ROLE CONTROLLER */}
       <header className={styles.header}>
         <div className={styles.logoArea}>
-          <div className={styles.logoIcon}>N</div>
-          <span className={styles.logoTitle}>Nexus Flow</span>
+          <div className={styles.logoIcon}>S</div>
+          <span className={styles.logoTitle}>SmartClean</span>
         </div>
         
         <div className={styles.controls}>
@@ -320,7 +320,7 @@ export default function Dashboard() {
 
       {loading && (
         <div className="glass-card animate-fade-in" style={{ padding: "40px", textAlign: "center" }}>
-          <p className="animate-pulse-slow" style={{ fontSize: "1.2rem", color: "var(--primary)" }}>Carregando dados do Nexus Flow...</p>
+          <p className="animate-pulse-slow" style={{ fontSize: "1.2rem", color: "var(--primary)" }}>Carregando dados do SmartClean...</p>
         </div>
       )}
 

@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Nexus Flow | Gestão de Telemetria & Faturamento Pay-Per-Use",
+  title: "SmartClean | Gestão de Telemetria & Faturamento Pay-Per-Use",
   description: "Plataforma multitenant IoT de alta precisão para monitoramento e faturamento inteligente de produtos químicos concentrados.",
 };
 
