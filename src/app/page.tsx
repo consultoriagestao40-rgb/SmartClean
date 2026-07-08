@@ -8,7 +8,8 @@ import {
   createDispositivo,
   updateCliente,
   updateDispositivo,
-  reabastecerDispositivo
+  reabastecerDispositivo,
+  resetBancoDeDados
 } from "./actions";
 import styles from "./dashboard.module.css";
 
@@ -223,6 +224,20 @@ export default function Dashboard() {
     }
   };
 
+  const handleResetDatabase = async () => {
+    if (!confirm("Tem certeza que deseja apagar todos os dados e resetar a base de dados para os valores iniciais de teste?")) return;
+    setLoading(true);
+    const res = await resetBancoDeDados();
+    if (res.success) {
+      alert("Base de dados resetada para o padrão com sucesso!");
+      setCurrentRole("admin");
+      loadData();
+    } else {
+      alert("Erro ao resetar base de dados: " + res.error);
+    }
+    setLoading(false);
+  };
+
   // ESP32 Webhook Request Simulator
   const handleTriggerTelemetry = async () => {
     if (!simDevice) {
@@ -366,6 +381,15 @@ export default function Dashboard() {
         </div>
         
         <div className={styles.controls}>
+          {currentRole === "admin" && (
+            <button 
+              className={styles.btnSecondary} 
+              style={{ padding: "8px 16px", fontSize: "0.85rem", background: "rgba(239, 68, 68, 0.15)", color: "#ef4444", borderColor: "rgba(239, 68, 68, 0.25)" }}
+              onClick={handleResetDatabase}
+            >
+              🗑️ Zerar Base de Teste
+            </button>
+          )}
           <div className={styles.roleSelectorWrapper}>
             <span className={styles.roleLabel}>Visualizar como:</span>
             <select 

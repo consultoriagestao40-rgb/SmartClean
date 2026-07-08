@@ -164,3 +164,13 @@ export async function reabastecerDispositivo(id: string) {
     return { success: false, error: error.message };
   }
 }
+
+export async function resetBancoDeDados() {
+  try {
+    await db.resetDatabase();
+    revalidatePath("/");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}

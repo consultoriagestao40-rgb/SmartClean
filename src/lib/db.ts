@@ -639,4 +639,71 @@ export const db = {
     const fullStock = dev.capacidadeBombonaL * 1000;
     return db.updateDispositivo(id, { estoqueAtualmL: fullStock });
   },
+
+  // RESET ENTIRE DATABASE TO INITIAL TEST STATE
+  resetDatabase: async (): Promise<void> => {
+    if (db.isMockMode()) {
+      const state = getMockState();
+      state.registros = [];
+      state.dispositivos = [
+        {
+          id: "ESP32-LAV-01",
+          empresaClienteId: "emp-jvs",
+          localInstalacao: "Lavanderia Principal",
+          produtoQuimicoAssociado: "Detergente Concentrado",
+          precoPormL: 0.05,
+          status: "Ativo",
+          ultimaConexao: null,
+          diluicao: "1:5",
+          proporcaoDiluicao: 5.0,
+          capacidadeBombonaL: 20.0,
+          estoqueAtualmL: 20000.0,
+        }
+      ];
+      state.empresas = [
+        {
+          id: "emp-jvs",
+          razaoSocial: "JVS Facilities",
+          cnpj: "45.678.901/0001-23",
+          emailContato: "contato@jvsfacilities.com.br",
+          telefone: "(11) 99999-8888",
+          status: "Ativo",
+          criadoEm: new Date(),
+        }
+      ];
+      saveMockState();
+      return;
+    }
+
+    // Live Neon DB Reset using Prisma
+    await prisma.registroConsumo.deleteMany();
+    await prisma.dispositivoIoT.deleteMany();
+    await prisma.empresaCliente.deleteMany();
+
+    const jvs = await prisma.empresaCliente.create({
+      data: {
+        id: "emp-jvs",
+        razaoSocial: "JVS Facilities",
+        cnpj: "45.678.901/0001-23",
+        emailContato: "contato@jvsfacilities.com.br",
+        telefone: "(11) 99999-8888",
+        status: "Ativo",
+      },
+    });
+
+    await prisma.dispositivoIoT.create({
+      data: {
+        id: "ESP32-LAV-01",
+        empresaClienteId: jvs.id,
+        localInstalacao: "Lavanderia Principal",
+        produtoQuimicoAssociado: "Detergente Concentrado",
+        precoPormL: 0.05,
+        status: "Ativo",
+        diluicao: "1:5",
+        proporcaoDiluicao: 5.0,
+        capacidadeBombonaL: 20.0,
+        estoqueAtualmL: 20000.0,
+      },
+    });
+  },
 };
