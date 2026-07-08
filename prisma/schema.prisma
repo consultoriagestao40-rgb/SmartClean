@@ -29,6 +29,13 @@ model DispositivoIoT {
   precoPormL              Float             @map("preco_por_ml")
   status                  String            @default("Ativo") // "Ativo" | "Inativo"
   ultimaConexao           DateTime?         @map("ultima_conexao")
+  
+  // NOVOS CAMPOS PARA DILUIÇÃO E ESTOQUE:
+  diluicao                String            @default("1:1")
+  proporcaoDiluicao       Float             @default(1.0)   @map("proporcao_diluicao")
+  capacidadeBombonaL      Float             @default(20.0)  @map("capacidade_bombona_l")
+  estoqueAtualmL          Float             @default(20000.0) @map("estoque_atual_ml")
+
   registrosConsumo        RegistroConsumo[]
 
   @@map("dispositivos_iot")

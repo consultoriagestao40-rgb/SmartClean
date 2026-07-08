@@ -35,6 +35,10 @@ async function main() {
       produtoQuimicoAssociado: "Detergente Concentrado",
       precoPormL: 0.05, // R$ 0,05 por mL (R$ 50,00 por Litro)
       status: "Ativo",
+      diluicao: "1:5",
+      proporcaoDiluicao: 5.0,
+      capacidadeBombonaL: 20.0,
+      estoqueAtualmL: 20000.0, // Começa cheio (20L)
     },
   });
 

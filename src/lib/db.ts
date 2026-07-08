@@ -34,6 +34,10 @@ export interface Dispositivo {
   precoPormL: number;
   status: string; // "Ativo" | "Inativo"
   ultimaConexao: Date | null;
+  diluicao: string;
+  proporcaoDiluicao: number;
+  capacidadeBombonaL: number;
+  estoqueAtualmL: number;
 }
 
 export interface Registro {
@@ -74,6 +78,10 @@ const INITIAL_DISPOSITIVOS: Dispositivo[] = [
     precoPormL: 0.05, // R$ 50,00 por Litro
     status: "Ativo",
     ultimaConexao: new Date(Date.now() - 5 * 60 * 1000),
+    diluicao: "1:5",
+    proporcaoDiluicao: 5.0,
+    capacidadeBombonaL: 20.0,
+    estoqueAtualmL: 12500.0,
   },
   {
     id: "ESP32-LAV-02",
@@ -83,6 +91,10 @@ const INITIAL_DISPOSITIVOS: Dispositivo[] = [
     precoPormL: 0.03, // R$ 30,00 por Litro
     status: "Ativo",
     ultimaConexao: new Date(Date.now() - 15 * 60 * 1000),
+    diluicao: "1:10",
+    proporcaoDiluicao: 10.0,
+    capacidadeBombonaL: 20.0,
+    estoqueAtualmL: 18400.0,
   },
   {
     id: "ESP32-COZ-01",
@@ -92,6 +104,10 @@ const INITIAL_DISPOSITIVOS: Dispositivo[] = [
     precoPormL: 0.08, // R$ 80,00 por Litro
     status: "Ativo",
     ultimaConexao: new Date(Date.now() - 2 * 60 * 1000),
+    diluicao: "1:20",
+    proporcaoDiluicao: 20.0,
+    capacidadeBombonaL: 20.0,
+    estoqueAtualmL: 9800.0,
   },
 ];
 
@@ -276,6 +292,10 @@ export const db = {
       precoPormL: item.precoPormL,
       status: item.status,
       ultimaConexao: item.ultimaConexao,
+      diluicao: item.diluicao,
+      proporcaoDiluicao: item.proporcaoDiluicao,
+      capacidadeBombonaL: item.capacidadeBombonaL,
+      estoqueAtualmL: item.estoqueAtualmL,
     }));
   },
 
@@ -299,6 +319,10 @@ export const db = {
         produtoQuimicoAssociado: data.produtoQuimicoAssociado,
         precoPormL: data.precoPormL,
         status: data.status,
+        diluicao: data.diluicao,
+        proporcaoDiluicao: data.proporcaoDiluicao,
+        capacidadeBombonaL: data.capacidadeBombonaL,
+        estoqueAtualmL: data.estoqueAtualmL,
       },
     });
     return {
@@ -309,6 +333,10 @@ export const db = {
       precoPormL: created.precoPormL,
       status: created.status,
       ultimaConexao: created.ultimaConexao,
+      diluicao: created.diluicao,
+      proporcaoDiluicao: created.proporcaoDiluicao,
+      capacidadeBombonaL: created.capacidadeBombonaL,
+      estoqueAtualmL: created.estoqueAtualmL,
     };
   },
 
@@ -330,6 +358,10 @@ export const db = {
       precoPormL: found.precoPormL,
       status: found.status,
       ultimaConexao: found.ultimaConexao,
+      diluicao: found.diluicao,
+      proporcaoDiluicao: found.proporcaoDiluicao,
+      capacidadeBombonaL: found.capacidadeBombonaL,
+      estoqueAtualmL: found.estoqueAtualmL,
     };
   },
 
@@ -340,10 +372,11 @@ export const db = {
     if (db.isMockMode()) {
       const state = getMockState();
       
-      // Update device connection timestamp
+      // Update device connection timestamp and decrement stock
       const dispIdx = state.dispositivos.findIndex(d => d.id === dispositivoId);
       if (dispIdx !== -1) {
         state.dispositivos[dispIdx].ultimaConexao = dataHora;
+        state.dispositivos[dispIdx].estoqueAtualmL = Math.max(0, state.dispositivos[dispIdx].estoqueAtualmL - mlConsumido);
       }
       
       const newRegistro: Registro = {
@@ -358,11 +391,14 @@ export const db = {
       return newRegistro;
     }
 
-    // Prisma Transaction to update connection time and create log
+    // Prisma Transaction to update connection time, decrement stock and create log
     const [_, createdLog] = await prisma.$transaction([
       prisma.dispositivoIoT.update({
         where: { id: dispositivoId },
-        data: { ultimaConexao: dataHora },
+        data: { 
+          ultimaConexao: dataHora,
+          estoqueAtualmL: { decrement: mlConsumido }
+        },
       }),
       prisma.registroConsumo.create({
         data: {
@@ -410,6 +446,10 @@ export const db = {
         precoPormL: d.precoPormL,
         status: d.status,
         ultimaConexao: d.ultimaConexao,
+        diluicao: d.diluicao,
+        proporcaoDiluicao: d.proporcaoDiluicao,
+        capacidadeBombonaL: d.capacidadeBombonaL,
+        estoqueAtualmL: d.estoqueAtualmL,
       }));
       const dbLogs = await prisma.registroConsumo.findMany({
         orderBy: { dataHora: "asc" },
@@ -481,6 +521,10 @@ export const db = {
         precoPormL: d.precoPormL,
         status: d.status,
         ultimaConexao: d.ultimaConexao,
+        diluicao: d.diluicao,
+        proporcaoDiluicao: d.proporcaoDiluicao,
+        capacidadeBombonaL: d.capacidadeBombonaL,
+        estoqueAtualmL: d.estoqueAtualmL,
       }));
       const dbLogs = await prisma.registroConsumo.findMany({
         orderBy: { dataHora: "asc" },
@@ -532,5 +576,67 @@ export const db = {
       totalMLMensal,
       totalValorMensal,
     };
+  },
+
+  // UPDATE CLIENT
+  updateEmpresa: async (id: string, data: Partial<Omit<Empresa, "id" | "criadoEm">>): Promise<Empresa> => {
+    if (db.isMockMode()) {
+      const state = getMockState();
+      const idx = state.empresas.findIndex(e => e.id === id);
+      if (idx === -1) throw new Error("Cliente não encontrado");
+      state.empresas[idx] = { ...state.empresas[idx], ...data } as Empresa;
+      saveMockState();
+      return state.empresas[idx];
+    }
+    const updated = await prisma.empresaCliente.update({
+      where: { id },
+      data,
+    });
+    return {
+      id: updated.id,
+      razaoSocial: updated.razaoSocial,
+      cnpj: updated.cnpj,
+      emailContato: updated.emailContato,
+      telefone: updated.telefone,
+      status: updated.status,
+      criadoEm: updated.criadoEm,
+    };
+  },
+
+  // UPDATE DEVICE
+  updateDispositivo: async (id: string, data: Partial<Omit<Dispositivo, "id" | "empresaClienteId" | "ultimaConexao">>): Promise<Dispositivo> => {
+    if (db.isMockMode()) {
+      const state = getMockState();
+      const idx = state.dispositivos.findIndex(d => d.id === id);
+      if (idx === -1) throw new Error("Dispositivo não encontrado");
+      state.dispositivos[idx] = { ...state.dispositivos[idx], ...data } as Dispositivo;
+      saveMockState();
+      return state.dispositivos[idx];
+    }
+    const updated = await prisma.dispositivoIoT.update({
+      where: { id },
+      data,
+    });
+    return {
+      id: updated.id,
+      empresaClienteId: updated.empresaClienteId,
+      localInstalacao: updated.localInstalacao,
+      produtoQuimicoAssociado: updated.produtoQuimicoAssociado,
+      precoPormL: updated.precoPormL,
+      status: updated.status,
+      ultimaConexao: updated.ultimaConexao,
+      diluicao: updated.diluicao,
+      proporcaoDiluicao: updated.proporcaoDiluicao,
+      capacidadeBombonaL: updated.capacidadeBombonaL,
+      estoqueAtualmL: updated.estoqueAtualmL,
+    };
+  },
+
+  // REFILL DEVICE CANISTER
+  reabastecerDispositivo: async (id: string): Promise<Dispositivo> => {
+    const dev = await db.getDispositivoById(id);
+    if (!dev) throw new Error("Dispositivo não encontrado");
+    const fullStock = dev.capacidadeBombonaL * 1000;
+    return db.updateDispositivo(id, { estoqueAtualmL: fullStock });
   },
 };

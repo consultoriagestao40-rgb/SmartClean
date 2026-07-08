@@ -5,7 +5,10 @@ import {
   getAdminData, 
   getClientData, 
   createCliente, 
-  createDispositivo 
+  createDispositivo,
+  updateCliente,
+  updateDispositivo,
+  reabastecerDispositivo
 } from "./actions";
 import styles from "./dashboard.module.css";
 
@@ -27,6 +30,10 @@ interface Dispositivo {
   precoPormL: number;
   status: string;
   ultimaConexao: string | Date | null;
+  diluicao: string;
+  proporcaoDiluicao: number;
+  capacidadeBombonaL: number;
+  estoqueAtualmL: number;
 }
 
 interface Registro {
@@ -64,6 +71,12 @@ export default function Dashboard() {
   // Modals
   const [showClientModal, setShowClientModal] = useState(false);
   const [showDeviceModal, setShowDeviceModal] = useState(false);
+  const [showEditClientModal, setShowEditClientModal] = useState(false);
+  const [showEditDeviceModal, setShowEditDeviceModal] = useState(false);
+
+  // Selected item states
+  const [selectedClient, setSelectedClient] = useState<Empresa | null>(null);
+  const [selectedDevice, setSelectedDevice] = useState<Dispositivo | null>(null);
 
   // Form States
   const [clientForm, setClientForm] = useState({
@@ -80,7 +93,28 @@ export default function Dashboard() {
     localInstalacao: "",
     produtoQuimicoAssociado: "",
     precoPormL: 0.05,
+    status: "Ativo",
+    diluicao: "1:5",
+    proporcaoDiluicao: 5,
+    capacidadeBombonaL: 20
+  });
+
+  const [editClientForm, setEditClientForm] = useState({
+    razaoSocial: "",
+    cnpj: "",
+    emailContato: "",
+    telefone: "",
     status: "Ativo"
+  });
+
+  const [editDeviceForm, setEditDeviceForm] = useState({
+    localInstalacao: "",
+    produtoQuimicoAssociado: "",
+    precoPormL: 0.05,
+    status: "Ativo",
+    diluicao: "1:5",
+    proporcaoDiluicao: 5,
+    capacidadeBombonaL: 20
   });
 
   // ESP32 Simulator States
@@ -147,10 +181,45 @@ export default function Dashboard() {
     const res = await createDispositivo(deviceForm);
     if (res.success) {
       setShowDeviceModal(false);
-      setDeviceForm({ id: "", empresaClienteId: "", localInstalacao: "", produtoQuimicoAssociado: "", precoPormL: 0.05, status: "Ativo" });
+      setDeviceForm({ id: "", empresaClienteId: "", localInstalacao: "", produtoQuimicoAssociado: "", precoPormL: 0.05, status: "Ativo", diluicao: "1:5", proporcaoDiluicao: 5, capacidadeBombonaL: 20 });
       loadData();
     } else {
       alert("Erro ao cadastrar dispositivo: " + res.error);
+    }
+  };
+
+  const handleEditClientSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedClient) return;
+    const res = await updateCliente(selectedClient.id, editClientForm);
+    if (res.success) {
+      setShowEditClientModal(false);
+      loadData();
+    } else {
+      alert("Erro ao atualizar cliente: " + res.error);
+    }
+  };
+
+  const handleEditDeviceSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDevice) return;
+    const res = await updateDispositivo(selectedDevice.id, editDeviceForm);
+    if (res.success) {
+      setShowEditDeviceModal(false);
+      loadData();
+    } else {
+      alert("Erro ao atualizar dispositivo: " + res.error);
+    }
+  };
+
+  const handleRefillDevice = async (id: string) => {
+    if (!confirm("Confirmar o reabastecimento da bombona para 100% de capacidade?")) return;
+    const res = await reabastecerDispositivo(id);
+    if (res.success) {
+      alert("Bombona reabastecida com sucesso!");
+      loadData();
+    } else {
+      alert("Erro ao reabastecer bombona: " + res.error);
     }
   };
 
@@ -534,6 +603,7 @@ export default function Dashboard() {
                             <th>CNPJ</th>
                             <th>Contato</th>
                             <th>Status</th>
+                            <th style={{ textAlign: "center" }}>Ações</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -549,6 +619,25 @@ export default function Dashboard() {
                                 <span className={`${styles.badge} ${emp.status === "Ativo" ? styles.badgeActive : styles.badgeInactive}`}>
                                   {emp.status}
                                 </span>
+                              </td>
+                              <td style={{ textAlign: "center" }}>
+                                <button 
+                                  className={styles.btnSecondary} 
+                                  style={{ padding: "4px 8px", fontSize: "0.75rem" }}
+                                  onClick={() => {
+                                    setSelectedClient(emp);
+                                    setEditClientForm({
+                                      razaoSocial: emp.razaoSocial,
+                                      cnpj: emp.cnpj,
+                                      emailContato: emp.emailContato,
+                                      telefone: emp.telefone || "",
+                                      status: emp.status
+                                    });
+                                    setShowEditClientModal(true);
+                                  }}
+                                >
+                                  Editar
+                                </button>
                               </td>
                             </tr>
                           ))}
@@ -572,14 +661,19 @@ export default function Dashboard() {
                             <th>Device ID / MAC</th>
                             <th>Cliente</th>
                             <th>Instalação / Produto</th>
+                            <th>Diluição</th>
                             <th>Taxa (mL)</th>
+                            <th>Estoque (Bombona)</th>
                             <th>Último Pulso</th>
-                            <th>Status</th>
+                            <th>Ações</th>
                           </tr>
                         </thead>
                         <tbody>
                           {adminData.dispositivos.map((dev) => {
                             const emp = adminData.empresas.find(e => e.id === dev.empresaClienteId);
+                            const totalCapacitymL = dev.capacidadeBombonaL * 1000;
+                            const stockPercentage = Math.max(0, Math.min(100, (dev.estoqueAtualmL / totalCapacitymL) * 100));
+                            
                             return (
                               <tr key={dev.id}>
                                 <td><code className={styles.logCode}>{dev.id}</code></td>
@@ -589,18 +683,62 @@ export default function Dashboard() {
                                   <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{dev.produtoQuimicoAssociado}</div>
                                 </td>
                                 <td>
+                                  <span className={styles.badge} style={{ background: "rgba(255, 255, 255, 0.05)", color: "#fff", fontSize: "0.7rem", border: "1px solid rgba(255, 255, 255, 0.1)" }}>
+                                    {dev.diluicao} (x{dev.proporcaoDiluicao})
+                                  </span>
+                                </td>
+                                <td>
                                   <strong>{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 3 }).format(dev.precoPormL)}</strong>
+                                </td>
+                                <td>
+                                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                                    <div style={{ fontSize: "0.8rem", fontWeight: "600" }}>
+                                      {(dev.estoqueAtualmL / 1000).toFixed(1)}L / {dev.capacidadeBombonaL}L
+                                      <span style={{ marginLeft: "6px", color: stockPercentage < 15 ? "#ef4444" : "var(--text-muted)", fontSize: "0.75rem", fontWeight: "bold" }}>
+                                        ({stockPercentage.toFixed(0)}%)
+                                      </span>
+                                    </div>
+                                    {stockPercentage < 15 && (
+                                      <span className={styles.badge} style={{ background: "rgba(239, 68, 68, 0.15)", color: "#ef4444", padding: "2px 6px", fontSize: "0.65rem", width: "fit-content", border: "1px solid rgba(239, 68, 68, 0.2)" }}>
+                                        CRÍTICO
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
                                 <td style={{ fontSize: "0.8rem" }}>
                                   {dev.ultimaConexao 
                                     ? new Date(dev.ultimaConexao).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) 
-                                    : "Nunca conectado"}
+                                    : "Nunca"}
                                 </td>
                                 <td>
-                                  <span className={`${styles.badge} ${dev.status === "Ativo" ? styles.badgeActive : styles.badgeInactive}`}>
-                                    {dev.status === "Ativo" && <span className={styles.pulseDot}></span>}
-                                    {dev.status}
-                                  </span>
+                                  <div style={{ display: "flex", gap: "8px" }}>
+                                    <button 
+                                      className={styles.btnSecondary} 
+                                      style={{ padding: "4px 8px", fontSize: "0.75rem", background: "rgba(16, 185, 129, 0.1)", color: "#34d399", borderColor: "rgba(16, 185, 129, 0.2)" }}
+                                      onClick={() => handleRefillDevice(dev.id)}
+                                    >
+                                      Reabastecer
+                                    </button>
+                                    <button 
+                                      className={styles.btnSecondary} 
+                                      style={{ padding: "4px 8px", fontSize: "0.75rem" }}
+                                      onClick={() => {
+                                        setSelectedDevice(dev);
+                                        setEditDeviceForm({
+                                          localInstalacao: dev.localInstalacao,
+                                          produtoQuimicoAssociado: dev.produtoQuimicoAssociado,
+                                          precoPormL: dev.precoPormL,
+                                          status: dev.status,
+                                          diluicao: dev.diluicao,
+                                          proporcaoDiluicao: dev.proporcaoDiluicao,
+                                          capacidadeBombonaL: dev.capacidadeBombonaL
+                                        });
+                                        setShowEditDeviceModal(true);
+                                      }}
+                                    >
+                                      Configurar
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -737,51 +875,94 @@ export default function Dashboard() {
                   {/* Consumption per installation point */}
                   <div className="glass-card" style={{ padding: "24px" }}>
                     <h3 style={{ fontSize: "1.1rem", fontWeight: "700", marginBottom: "16px" }}>
-                      📊 Consumo por Ponto de Instalação
+                      📊 Consumo & Nível de Estoque por Ponto
                     </h3>
                     <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "20px" }}>
-                      Volume acumulado movimentado por cada ponto monitorado (placa ESP32).
+                      Informações detalhadas de volume químico de concentrado, diluição aplicada e rendimento de produto pronto uso gerado.
                     </p>
 
                     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
                       {clientData.devices.map(dev => {
-                        // Calculate total mL for this device
                         const devLogs = clientData.logs.filter(l => l.dispositivoId === dev.id);
                         const devTotalML = devLogs.reduce((acc, l) => acc + l.mlConsumido, 0);
                         const devCost = devTotalML * dev.precoPormL;
+                        
+                        // Volume Pronto Uso
+                        const readyToUseML = devTotalML * dev.proporcaoDiluicao;
 
-                        // Calculate percentage of total client consumption
-                        const percentage = clientData.totalMLMensal > 0 
-                          ? (devTotalML / clientData.totalMLMensal) * 100 
-                          : 0;
+                        // Stock management calculations
+                        const totalCapacitymL = dev.capacidadeBombonaL * 1000;
+                        const stockPercentage = Math.max(0, Math.min(100, (dev.estoqueAtualmL / totalCapacitymL) * 100));
+                        
+                        // Determine stock progress bar color
+                        let progressColor = "#10b981"; // green
+                        if (stockPercentage < 15) {
+                          progressColor = "#ef4444"; // red
+                        } else if (stockPercentage < 50) {
+                          progressColor = "#f59e0b"; // orange
+                        }
 
                         return (
-                          <div key={dev.id}>
-                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", fontSize: "0.9rem" }}>
+                          <div key={dev.id} style={{ border: "1px solid var(--border-color)", padding: "16px", borderRadius: "12px", background: "rgba(255,255,255,0.01)" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px", alignItems: "center" }}>
                               <div>
-                                <strong>{dev.localInstalacao}</strong>
-                                <span style={{ marginLeft: "10px", fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                                <strong style={{ fontSize: "0.95rem" }}>{dev.localInstalacao}</strong>
+                                <span style={{ marginLeft: "8px", fontSize: "0.75rem", color: "var(--text-muted)" }}>
                                   ({dev.produtoQuimicoAssociado})
                                 </span>
                               </div>
+                              <span className={styles.badge} style={{ background: "rgba(99, 102, 241, 0.15)", color: "#a5b4fc", border: "1px solid rgba(99, 102, 241, 0.2)" }}>
+                                Diluição {dev.diluicao}
+                              </span>
+                            </div>
+
+                            {/* Yield Metrics */}
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", margin: "12px 0", padding: "8px 0", borderTop: "1px dashed rgba(255,255,255,0.03)", borderBottom: "1px dashed rgba(255,255,255,0.03)" }}>
                               <div>
-                                <strong>{new Intl.NumberFormat("pt-BR").format(devTotalML)} mL</strong> 
-                                <span style={{ color: "var(--text-muted)", marginLeft: "8px" }}>
-                                  ({new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(devCost)})
-                                </span>
+                                <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>Consumo Concentrado:</span>
+                                <div style={{ fontSize: "0.95rem", fontWeight: "700", marginTop: "2px" }}>
+                                  {new Intl.NumberFormat("pt-BR").format(devTotalML)} mL
+                                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginLeft: "6px", fontWeight: "normal" }}>
+                                    ({new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(devCost)})
+                                  </span>
+                                </div>
+                              </div>
+                              <div>
+                                <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>Volume Diluído Pronto Uso:</span>
+                                <div style={{ fontSize: "0.95rem", fontWeight: "700", color: "var(--secondary)", marginTop: "2px" }}>
+                                  {new Intl.NumberFormat("pt-BR").format(readyToUseML)} mL
+                                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginLeft: "4px", fontWeight: "normal" }}>
+                                    ({(readyToUseML / 1000).toFixed(1)} L)
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                            <div style={{ height: "10px", background: "rgba(255, 255, 255, 0.05)", borderRadius: "5px", overflow: "hidden", border: "1px solid var(--border-color)" }}>
-                              <div 
-                                style={{ 
-                                  height: "100%", 
-                                  width: `${percentage}%`, 
-                                  background: "linear-gradient(to right, var(--primary), var(--secondary))", 
-                                  boxShadow: "0 0 10px var(--primary-glow)",
-                                  borderRadius: "5px",
-                                  transition: "width 0.8s ease-in-out" 
-                                }}
-                              ></div>
+
+                            {/* Canister Stock Level Indicator */}
+                            <div style={{ marginTop: "12px" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", marginBottom: "6px" }}>
+                                <span style={{ color: "var(--text-muted)" }}>Estoque da Bombona ({dev.capacidadeBombonaL} L)</span>
+                                <strong style={{ color: stockPercentage < 15 ? "#ef4444" : "var(--text-main)" }}>
+                                  {(dev.estoqueAtualmL / 1000).toFixed(2)} L restantes ({stockPercentage.toFixed(0)}%)
+                                </strong>
+                              </div>
+                              <div style={{ height: "8px", background: "rgba(255, 255, 255, 0.05)", borderRadius: "4px", overflow: "hidden", border: "1px solid var(--border-color)" }}>
+                                <div 
+                                  style={{ 
+                                    height: "100%", 
+                                    width: `${stockPercentage}%`, 
+                                    background: progressColor, 
+                                    boxShadow: `0 0 8px ${progressColor}44`,
+                                    borderRadius: "4px",
+                                    transition: "width 0.5s ease" 
+                                  }}
+                                ></div>
+                              </div>
+                              {stockPercentage < 15 && (
+                                <div style={{ marginTop: "8px", fontSize: "0.75rem", color: "#ef4444", fontWeight: "600" }}>
+                                  ⚠️ Estoque Crítico! A reposição já pode ser solicitada à distribuidora.
+                                </div>
+                              )}
                             </div>
                           </div>
                         );
@@ -792,7 +973,7 @@ export default function Dashboard() {
                   {/* Telemetry log table */}
                   <div className="glass-card">
                     <div className={styles.cardHeader}>
-                      <h3 className={styles.cardTitle}>📜 Histórico Recente de Consumos</h3>
+                      <h3 className={styles.cardTitle}>📜 Histórico Completo de Consumos</h3>
                     </div>
                     <div className={styles.tableWrapper}>
                       <table className={styles.table}>
@@ -813,7 +994,7 @@ export default function Dashboard() {
                               </td>
                             </tr>
                           ) : (
-                            clientData.logs.slice().reverse().slice(0, 10).map((log) => {
+                            clientData.logs.slice().reverse().map((log) => {
                               const dev = clientData.devices.find(d => d.id === log.dispositivoId);
                               return (
                                 <tr key={log.id}>
@@ -865,7 +1046,10 @@ export default function Dashboard() {
                             <div>
                               <div>{dev.localInstalacao}</div>
                               <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                                {dev.produtoQuimicoAssociado} • {new Intl.NumberFormat("pt-BR").format(devTotalML)} mL x R$ {dev.precoPormL.toFixed(3)}
+                                {dev.produtoQuimicoAssociado} • Diluição {dev.diluicao}
+                              </div>
+                              <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                                {new Intl.NumberFormat("pt-BR").format(devTotalML)} mL conc. = {new Intl.NumberFormat("pt-BR").format(devTotalML * dev.proporcaoDiluicao)} mL pronto uso
                               </div>
                             </div>
                             <span style={{ fontWeight: "600" }}>
@@ -1038,8 +1222,8 @@ export default function Dashboard() {
                     <input 
                       type="number" 
                       required 
-                      step="0.001"
-                      min="0.001"
+                      step="0.0001"
+                      min="0.0001"
                       value={deviceForm.precoPormL}
                       onChange={(e) => setDeviceForm({...deviceForm, precoPormL: Number(e.target.value)})}
                       placeholder="0.05"
@@ -1056,10 +1240,220 @@ export default function Dashboard() {
                     </select>
                   </div>
                 </div>
+
+                <div className={styles.formGrid}>
+                  <div>
+                    <label>Rótulo Diluição (Ex: 1:5, Puro)</label>
+                    <input 
+                      type="text" 
+                      required 
+                      value={deviceForm.diluicao}
+                      onChange={(e) => setDeviceForm({...deviceForm, diluicao: e.target.value})}
+                      placeholder="1:5"
+                    />
+                  </div>
+                  <div>
+                    <label>Proporção Diluição (Multiplicador)</label>
+                    <input 
+                      type="number" 
+                      required 
+                      step="0.1"
+                      min="1"
+                      value={deviceForm.proporcaoDiluicao}
+                      onChange={(e) => setDeviceForm({...deviceForm, proporcaoDiluicao: Number(e.target.value)})}
+                      placeholder="5"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label>Capacidade da Bombona (Litros)</label>
+                  <input 
+                    type="number" 
+                    required 
+                    step="0.1"
+                    min="1"
+                    value={deviceForm.capacidadeBombonaL}
+                    onChange={(e) => setDeviceForm({...deviceForm, capacidadeBombonaL: Number(e.target.value)})}
+                    placeholder="20"
+                  />
+                </div>
               </div>
               <div className={styles.modalFooter}>
                 <button type="button" className={styles.btnSecondary} onClick={() => setShowDeviceModal(false)}>Cancelar</button>
                 <button type="submit" className={styles.btnPrimary}>Salvar Dispositivo</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: EDIT CLIENT                                                        */}
+      {/* ========================================================================= */}
+      {showEditClientModal && selectedClient && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent}>
+            <div className={styles.modalHeader}>
+              <h3 style={{ fontWeight: "700" }}>Editar Cliente: {selectedClient.razaoSocial}</h3>
+              <button className={styles.modalClose} onClick={() => setShowEditClientModal(false)}>&times;</button>
+            </div>
+            <form onSubmit={handleEditClientSubmit}>
+              <div className={styles.modalBody} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div>
+                  <label>Razão Social</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={editClientForm.razaoSocial}
+                    onChange={(e) => setEditClientForm({...editClientForm, razaoSocial: e.target.value})}
+                  />
+                </div>
+
+                <div className={styles.formGrid}>
+                  <div>
+                    <label>CNPJ</label>
+                    <input 
+                      type="text" 
+                      required 
+                      value={editClientForm.cnpj}
+                      onChange={(e) => setEditClientForm({...editClientForm, cnpj: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label>Telefone</label>
+                    <input 
+                      type="text" 
+                      value={editClientForm.telefone}
+                      onChange={(e) => setEditClientForm({...editClientForm, telefone: e.target.value})}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label>E-mail de Contato</label>
+                  <input 
+                    type="email" 
+                    required 
+                    value={editClientForm.emailContato}
+                    onChange={(e) => setEditClientForm({...editClientForm, emailContato: e.target.value})}
+                  />
+                </div>
+
+                <div>
+                  <label>Status Operacional</label>
+                  <select 
+                    value={editClientForm.status}
+                    onChange={(e) => setEditClientForm({...editClientForm, status: e.target.value})}
+                  >
+                    <option value="Ativo">Ativo</option>
+                    <option value="Inativo">Inativo</option>
+                  </select>
+                </div>
+              </div>
+              <div className={styles.modalFooter}>
+                <button type="button" className={styles.btnSecondary} onClick={() => setShowEditClientModal(false)}>Cancelar</button>
+                <button type="submit" className={styles.btnPrimary}>Atualizar Cliente</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: CONFIGURE/EDIT DEVICE                                              */}
+      {/* ========================================================================= */}
+      {showEditDeviceModal && selectedDevice && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent}>
+            <div className={styles.modalHeader}>
+              <h3 style={{ fontWeight: "700" }}>Configurar Dispositivo: {selectedDevice.id}</h3>
+              <button className={styles.modalClose} onClick={() => setShowEditDeviceModal(false)}>&times;</button>
+            </div>
+            <form onSubmit={handleEditDeviceSubmit}>
+              <div className={styles.modalBody} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div>
+                  <label>Local de Instalação</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={editDeviceForm.localInstalacao}
+                    onChange={(e) => setEditDeviceForm({...editDeviceForm, localInstalacao: e.target.value})}
+                  />
+                </div>
+
+                <div>
+                  <label>Produto Químico Concentrado Associado</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={editDeviceForm.produtoQuimicoAssociado}
+                    onChange={(e) => setEditDeviceForm({...editDeviceForm, produtoQuimicoAssociado: e.target.value})}
+                  />
+                </div>
+
+                <div className={styles.formGrid}>
+                  <div>
+                    <label>Preço por mL (R$)</label>
+                    <input 
+                      type="number" 
+                      required 
+                      step="0.0001"
+                      min="0.0001"
+                      value={editDeviceForm.precoPormL}
+                      onChange={(e) => setEditDeviceForm({...editDeviceForm, precoPormL: Number(e.target.value)})}
+                    />
+                  </div>
+                  <div>
+                    <label>Status</label>
+                    <select 
+                      value={editDeviceForm.status}
+                      onChange={(e) => setEditDeviceForm({...editDeviceForm, status: e.target.value})}
+                    >
+                      <option value="Ativo">Ativo</option>
+                      <option value="Inativo">Inativo</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className={styles.formGrid}>
+                  <div>
+                    <label>Rótulo Diluição (Ex: 1:5, Puro)</label>
+                    <input 
+                      type="text" 
+                      required 
+                      value={editDeviceForm.diluicao}
+                      onChange={(e) => setEditDeviceForm({...editDeviceForm, diluicao: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label>Proporção Diluição (Multiplicador)</label>
+                    <input 
+                      type="number" 
+                      required 
+                      step="0.1"
+                      min="1"
+                      value={editDeviceForm.proporcaoDiluicao}
+                      onChange={(e) => setEditDeviceForm({...editDeviceForm, proporcaoDiluicao: Number(e.target.value)})}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label>Capacidade da Bombona (Litros)</label>
+                  <input 
+                    type="number" 
+                    required 
+                    step="0.1"
+                    min="1"
+                    value={editDeviceForm.capacidadeBombonaL}
+                    onChange={(e) => setEditDeviceForm({...editDeviceForm, capacidadeBombonaL: Number(e.target.value)})}
+                  />
+                </div>
+              </div>
+              <div className={styles.modalFooter}>
+                <button type="button" className={styles.btnSecondary} onClick={() => setShowEditDeviceModal(false)}>Cancelar</button>
+                <button type="submit" className={styles.btnPrimary}>Atualizar Configurações</button>
               </div>
             </form>
           </div>

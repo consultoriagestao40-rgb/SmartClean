@@ -82,11 +82,16 @@ export async function createDispositivo(formData: {
   produtoQuimicoAssociado: string;
   precoPormL: number;
   status: string;
+  diluicao?: string;
+  proporcaoDiluicao?: number;
+  capacidadeBombonaL?: number;
 }) {
   try {
     if (!formData.id || !formData.empresaClienteId || !formData.localInstalacao || !formData.produtoQuimicoAssociado || formData.precoPormL === undefined) {
       throw new Error("Todos os campos do dispositivo são obrigatórios");
     }
+
+    const capacity = Number(formData.capacidadeBombonaL ?? 20);
 
     const created = await db.createDispositivo({
       id: formData.id,
@@ -95,11 +100,66 @@ export async function createDispositivo(formData: {
       produtoQuimicoAssociado: formData.produtoQuimicoAssociado,
       precoPormL: Number(formData.precoPormL),
       status: formData.status,
-      ultimaConexao: null
+      ultimaConexao: null,
+      diluicao: formData.diluicao || "1:1",
+      proporcaoDiluicao: Number(formData.proporcaoDiluicao ?? 1.0),
+      capacidadeBombonaL: capacity,
+      estoqueAtualmL: capacity * 1000 // Começa cheia
     });
 
     revalidatePath("/");
     return { success: true, data: created };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function updateCliente(id: string, data: {
+  razaoSocial?: string;
+  cnpj?: string;
+  emailContato?: string;
+  telefone?: string;
+  status?: string;
+}) {
+  try {
+    const updated = await db.updateEmpresa(id, data);
+    revalidatePath("/");
+    return { success: true, data: updated };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function updateDispositivo(id: string, data: {
+  localInstalacao?: string;
+  produtoQuimicoAssociado?: string;
+  precoPormL?: number;
+  status?: string;
+  diluicao?: string;
+  proporcaoDiluicao?: number;
+  capacidadeBombonaL?: number;
+  estoqueAtualmL?: number;
+}) {
+  try {
+    const updated = await db.updateDispositivo(id, {
+      ...data,
+      precoPormL: data.precoPormL !== undefined ? Number(data.precoPormL) : undefined,
+      proporcaoDiluicao: data.proporcaoDiluicao !== undefined ? Number(data.proporcaoDiluicao) : undefined,
+      capacidadeBombonaL: data.capacidadeBombonaL !== undefined ? Number(data.capacidadeBombonaL) : undefined,
+      estoqueAtualmL: data.estoqueAtualmL !== undefined ? Number(data.estoqueAtualmL) : undefined,
+    });
+    revalidatePath("/");
+    return { success: true, data: updated };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function reabastecerDispositivo(id: string) {
+  try {
+    const updated = await db.reabastecerDispositivo(id);
+    revalidatePath("/");
+    return { success: true, data: updated };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
